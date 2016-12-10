@@ -223,4 +223,10 @@ static inline int _go_gc_live(mrb_state *m) {
   return gc->live;
 }
 
+static inline mrb_value _go_mrb_context_run(mrb_state *m, struct RProc *proc, mrb_value self, int *stack_keep) {
+  mrb_value result = mrb_context_run(m, proc, self, *stack_keep);
+  *stack_keep = proc->body.irep->nlocals;
+  return result;
+}
+
 #endif
