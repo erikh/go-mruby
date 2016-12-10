@@ -229,4 +229,12 @@ static inline mrb_value _go_mrb_context_run(mrb_state *m, struct RProc *proc, mr
   return result;
 }
 
+static inline void _go_mrb_context_set_capture_errors(struct mrbc_context *ctx, int state) {
+  ctx->capture_errors = FALSE;
+
+  if (state != 0) {
+    ctx->capture_errors = TRUE;
+  }
+}
+
 #endif
