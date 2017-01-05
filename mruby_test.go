@@ -232,6 +232,11 @@ func TestMrbGetArgs(t *testing.T) {
 			[]ValueType{TypeString, TypeTrue, TypeProc},
 			nil,
 		},
+		{
+			`([[]])`,
+			[]ValueType{TypeArray},
+			nil,
+		},
 	}
 
 	// lots of this effort is centered around testing multithreaded behavior.

@@ -33,7 +33,7 @@ var Nil NilType
 // basically anything in Ruby: a class, an object (instance), a variable,
 // etc.
 type MrbValue struct {
-	value C.mrb_value
+	value *C.mrb_value
 	state *C.mrb_state
 }
 
@@ -60,25 +60,24 @@ func (v *MrbValue) CallBlock(method string, args ...Value) (*MrbValue, error) {
 }
 
 func (v *MrbValue) call(method string, args []Value, block Value) (*MrbValue, error) {
-	var argv []C.mrb_value
+	var argv []*C.mrb_value
 	var argvPtr *C.mrb_value
 
 	mrb := &Mrb{v.state}
 
 	if len(args) > 0 {
 		// Make the raw byte slice to hold our arguments we'll pass to C
-		argv = make([]C.mrb_value, len(args))
+		argv = make([]*C.mrb_value, len(args))
 		for i, arg := range args {
 			argv[i] = arg.MrbValue(mrb).value
 		}
 
-		argvPtr = &argv[0]
+		argvPtr = argv[0]
 	}
 
 	var blockV *C.mrb_value
 	if block != nil {
-		val := block.MrbValue(mrb).value
-		blockV = &val
+		blockV = block.MrbValue(mrb).value
 	}
 
 	cs := C.CString(method)
@@ -90,14 +89,14 @@ func (v *MrbValue) call(method string, args []Value, block Value) (*MrbValue, er
 	if blockV == nil {
 		result = C.mrb_funcall_argv(
 			v.state,
-			v.value,
+			*v.value,
 			C.mrb_intern_cstr(v.state, cs),
 			C.mrb_int(len(argv)),
 			argvPtr)
 	} else {
 		result = C.mrb_funcall_with_block(
 			v.state,
-			v.value,
+			*v.value,
 			C.mrb_intern_cstr(v.state, cs),
 			C.mrb_int(len(argv)),
 			argvPtr,
@@ -108,12 +107,12 @@ func (v *MrbValue) call(method string, args []Value, block Value) (*MrbValue, er
 		return nil, exc
 	}
 
-	return newValue(v.state, result), nil
+	return newValue(v.state, &result), nil
 }
 
 // IsDead tells you if an object has been collected by the GC or not.
 func (v *MrbValue) IsDead() bool {
-	return C.ushort(C._go_isdead(v.state, v.value)) != 0
+	return C.ushort(C._go_isdead(v.state, *v.value)) != 0
 }
 
 // MrbValue so that *MrbValue implements the "Value" interface.
@@ -128,23 +127,23 @@ func (v *MrbValue) Mrb() *Mrb {
 
 // GCProtect protects this value from being garbage collected.
 func (v *MrbValue) GCProtect() {
-	C.mrb_gc_protect(v.state, v.value)
+	C.mrb_gc_protect(v.state, *v.value)
 }
 
 // SetProcTargetClass sets the target class where a proc will be executed
 // when this value is a proc.
 func (v *MrbValue) SetProcTargetClass(c *Class) {
-	proc := C._go_mrb_proc_ptr(v.value)
+	proc := C._go_mrb_proc_ptr(*v.value)
 	proc.target_class = c.class
 }
 
 // Type returns the ValueType of the MrbValue. See the constants table.
 func (v *MrbValue) Type() ValueType {
-	if C._go_mrb_nil_p(v.value) == 1 {
+	if C._go_mrb_nil_p(*v.value) == 1 {
 		return TypeNil
 	}
 
-	return ValueType(C._go_mrb_type(v.value))
+	return ValueType(C._go_mrb_type(*v.value))
 }
 
 // Exception is a special type of value that represents an error
@@ -181,14 +180,14 @@ func (v *MrbValue) Array() *Array {
 // TypeFixnum. Calling this with any other type will result in undefined
 // behavior.
 func (v *MrbValue) Fixnum() int {
-	return int(C._go_mrb_fixnum(v.value))
+	return int(C._go_mrb_fixnum(*v.value))
 }
 
 // Float returns the numeric value of this object if the Type() is
 // TypeFloat. Calling this with any other type will result in undefined
 // behavior.
 func (v *MrbValue) Float() float64 {
-	return float64(C._go_mrb_float(v.value))
+	return float64(C._go_mrb_float(*v.value))
 }
 
 // Hash returns the Hash value of this value. If the Type of the MrbValue
@@ -201,7 +200,7 @@ func (v *MrbValue) Hash() *Hash {
 
 // String returns the "to_s" result of this value.
 func (v *MrbValue) String() string {
-	value := C.mrb_obj_as_string(v.state, v.value)
+	value := C.mrb_obj_as_string(v.state, *v.value)
 	result := C.GoString(C.mrb_string_value_ptr(v.state, value))
 	return result
 }
@@ -209,14 +208,14 @@ func (v *MrbValue) String() string {
 // Class returns the *Class of a value.
 func (v *MrbValue) Class() *Class {
 	mrb := &Mrb{v.state}
-	return newClass(mrb, C.mrb_class(v.state, v.value))
+	return newClass(mrb, C.mrb_class(v.state, *v.value))
 }
 
 // SingletonClass returns the singleton class (a class isolated just for the
 // scope of the object) for the given value.
 func (v *MrbValue) SingletonClass() *Class {
 	mrb := &Mrb{v.state}
-	sclass := C._go_mrb_class_ptr(C.mrb_singleton_class(v.state, v.value))
+	sclass := C._go_mrb_class_ptr(C.mrb_singleton_class(v.state, *v.value))
 	return newClass(mrb, sclass)
 }
 
@@ -256,7 +255,8 @@ func newExceptionValue(s *C.mrb_state) *Exception {
 
 	// Retrieve and convert backtrace to []string (avoiding reflection in Decode)
 	var backtrace []string
-	mrbBacktrace := newValue(s, C.mrb_exc_backtrace(s, value)).Array()
+	bt := C.mrb_exc_backtrace(s, value)
+	mrbBacktrace := newValue(s, &bt).Array()
 	for i := 0; i < mrbBacktrace.Len(); i++ {
 		ln, _ := mrbBacktrace.Get(i)
 		backtrace = append(backtrace, ln.String())
@@ -273,7 +273,7 @@ func newExceptionValue(s *C.mrb_state) *Exception {
 		}
 	}
 
-	result := newValue(s, value)
+	result := newValue(s, &value)
 	return &Exception{
 		MrbValue:  result,
 		Message:   result.String(),
@@ -283,7 +283,7 @@ func newExceptionValue(s *C.mrb_state) *Exception {
 	}
 }
 
-func newValue(s *C.mrb_state, v C.mrb_value) *MrbValue {
+func newValue(s *C.mrb_state, v *C.mrb_value) *MrbValue {
 	return &MrbValue{
 		state: s,
 		value: v,

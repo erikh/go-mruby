@@ -80,11 +80,11 @@ func goMRBFuncCall(s *C.mrb_state, v *C.mrb_value, callExc *C.mrb_value) C.mrb_v
 	// Call the method to get our *Value
 	// TODO(mitchellh): reuse the Mrb instead of allocating every time
 	mrb := &Mrb{s}
-	result, exc := f(mrb, newValue(s, *v))
+	result, exc := f(mrb, newValue(s, v))
 
 	if exc != nil {
-		*callExc = exc.MrbValue(mrb).value
-		return mrb.NilValue().value
+		callExc = exc.MrbValue(mrb).value
+		return *mrb.NilValue().value
 	}
 
 	// If the result was a Go nil, convert it to a Ruby nil
@@ -92,7 +92,7 @@ func goMRBFuncCall(s *C.mrb_state, v *C.mrb_value, callExc *C.mrb_value) C.mrb_v
 		result = mrb.NilValue()
 	}
 
-	return result.MrbValue(mrb).value
+	return *result.MrbValue(mrb).value
 }
 
 func insertMethod(s *C.mrb_state, c *C.struct_RClass, n string, f Func) {

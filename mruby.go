@@ -130,7 +130,7 @@ func (m *Mrb) ConstDefined(name string, scope Value) bool {
 	cs := C.CString(name)
 	defer C.free(unsafe.Pointer(cs))
 
-	scopeV := scope.MrbValue(m).value
+	scopeV := *scope.MrbValue(m).value
 	b := C.mrb_const_defined(
 		m.state, scopeV, C.mrb_intern_cstr(m.state, cs))
 	return C.ushort(b) != 0
@@ -157,7 +157,7 @@ func (m *Mrb) GetArgs() []*MrbValue {
 	values := make([]*MrbValue, count)
 
 	for i := 0; i < int(count); i++ {
-		values[i] = newValue(m.state, getArgAccumulator[i])
+		values[i] = newValue(m.state, &getArgAccumulator[i])
 	}
 
 	return values
@@ -184,7 +184,7 @@ func (m *Mrb) LoadString(code string) (*MrbValue, error) {
 		return nil, exc
 	}
 
-	return newValue(m.state, value), nil
+	return newValue(m.state, &value), nil
 }
 
 // Run executes the given value, which should be a proc type.
@@ -200,14 +200,14 @@ func (m *Mrb) Run(v Value, self Value) (*MrbValue, error) {
 	mrbV := v.MrbValue(m)
 	mrbSelf := self.MrbValue(m)
 
-	proc := C._go_mrb_proc_ptr(mrbV.value)
-	value := C.mrb_run(m.state, proc, mrbSelf.value)
+	proc := C._go_mrb_proc_ptr(*mrbV.value)
+	value := C.mrb_run(m.state, proc, *mrbSelf.value)
 
 	if exc := checkException(m.state); exc != nil {
 		return nil, exc
 	}
 
-	return newValue(m.state, value), nil
+	return newValue(m.state, &value), nil
 }
 
 // RunWithContext is a context-aware parser (aka, it does not discard state
@@ -223,17 +223,17 @@ func (m *Mrb) RunWithContext(v Value, self Value, stackKeep int) (int, *MrbValue
 
 	mrbV := v.MrbValue(m)
 	mrbSelf := self.MrbValue(m)
-	proc := C._go_mrb_proc_ptr(mrbV.value)
+	proc := C._go_mrb_proc_ptr(*mrbV.value)
 
 	i := C.int(stackKeep)
 
-	value := C._go_mrb_context_run(m.state, proc, mrbSelf.value, &i)
+	value := C._go_mrb_context_run(m.state, proc, *mrbSelf.value, &i)
 
 	if exc := checkException(m.state); exc != nil {
 		return stackKeep, nil, exc
 	}
 
-	return int(i), newValue(m.state, value), nil
+	return int(i), newValue(m.state, &value), nil
 }
 
 // Yield yields to a block with the given arguments.
@@ -242,22 +242,22 @@ func (m *Mrb) RunWithContext(v Value, self Value, stackKeep int) (int, *MrbValue
 func (m *Mrb) Yield(block Value, args ...Value) (*MrbValue, error) {
 	mrbBlock := block.MrbValue(m)
 
-	var argv []C.mrb_value
+	var argv []*C.mrb_value
 	var argvPtr *C.mrb_value
 
 	if len(args) > 0 {
 		// Make the raw byte slice to hold our arguments we'll pass to C
-		argv = make([]C.mrb_value, len(args))
+		argv = make([]*C.mrb_value, len(args))
 		for i, arg := range args {
 			argv[i] = arg.MrbValue(m).value
 		}
 
-		argvPtr = &argv[0]
+		argvPtr = argv[0]
 	}
 
 	result := C._go_mrb_yield_argv(
 		m.state,
-		mrbBlock.value,
+		*mrbBlock.value,
 		C.mrb_int(len(argv)),
 		argvPtr)
 
@@ -265,7 +265,7 @@ func (m *Mrb) Yield(block Value, args ...Value) (*MrbValue, error) {
 		return nil, exc
 	}
 
-	return newValue(m.state, result), nil
+	return newValue(m.state, &result), nil
 }
 
 //-------------------------------------------------------------------
@@ -342,34 +342,40 @@ func (m *Mrb) KernelModule() *Class {
 
 // TopSelf returns the top-level `self` value.
 func (m *Mrb) TopSelf() *MrbValue {
-	return newValue(m.state, C.mrb_obj_value(unsafe.Pointer(m.state.top_self)))
+	val := C.mrb_obj_value(unsafe.Pointer(m.state.top_self))
+	return newValue(m.state, &val)
 }
 
 // FalseValue returns a Value for "false"
 func (m *Mrb) FalseValue() *MrbValue {
-	return newValue(m.state, C.mrb_false_value())
+	val := C.mrb_false_value()
+	return newValue(m.state, &val)
 }
 
 // NilValue returns "nil"
 func (m *Mrb) NilValue() *MrbValue {
-	return newValue(m.state, C.mrb_nil_value())
+	val := C.mrb_nil_value()
+	return newValue(m.state, &val)
 }
 
 // TrueValue returns a Value for "true"
 func (m *Mrb) TrueValue() *MrbValue {
-	return newValue(m.state, C.mrb_true_value())
+	val := C.mrb_true_value()
+	return newValue(m.state, &val)
 }
 
 // FixnumValue returns a Value for a fixed number.
 func (m *Mrb) FixnumValue(v int) *MrbValue {
-	return newValue(m.state, C.mrb_fixnum_value(C.mrb_int(v)))
+	val := C.mrb_fixnum_value(C.mrb_int(v))
+	return newValue(m.state, &val)
 }
 
 // StringValue returns a Value for a string.
 func (m *Mrb) StringValue(s string) *MrbValue {
 	cs := C.CString(s)
 	defer C.free(unsafe.Pointer(cs))
-	return newValue(m.state, C.mrb_str_new_cstr(m.state, cs))
+	val := C.mrb_str_new_cstr(m.state, cs)
+	return newValue(m.state, &val)
 }
 
 func checkException(state *C.mrb_state) error {

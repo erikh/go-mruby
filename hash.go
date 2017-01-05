@@ -13,10 +13,10 @@ type Hash struct {
 // Delete deletes a key from the hash, returning its existing value,
 // or nil if there wasn't a value.
 func (h *Hash) Delete(key Value) (*MrbValue, error) {
-	keyVal := key.MrbValue(&Mrb{h.state}).value
-	result := C.mrb_hash_delete_key(h.state, h.value, keyVal)
+	keyVal := *key.MrbValue(&Mrb{h.state}).value
+	result := C.mrb_hash_delete_key(h.state, *h.value, keyVal)
 
-	val := newValue(h.state, result)
+	val := newValue(h.state, &result)
 	if val.Type() == TypeNil {
 		val = nil
 	}
@@ -26,16 +26,16 @@ func (h *Hash) Delete(key Value) (*MrbValue, error) {
 
 // Get reads a value from the hash.
 func (h *Hash) Get(key Value) (*MrbValue, error) {
-	keyVal := key.MrbValue(&Mrb{h.state}).value
-	result := C.mrb_hash_get(h.state, h.value, keyVal)
-	return newValue(h.state, result), nil
+	keyVal := *key.MrbValue(&Mrb{h.state}).value
+	result := C.mrb_hash_get(h.state, *h.value, keyVal)
+	return newValue(h.state, &result), nil
 }
 
 // Set sets a value on the hash
 func (h *Hash) Set(key, val Value) error {
-	keyVal := key.MrbValue(&Mrb{h.state}).value
-	valVal := val.MrbValue(&Mrb{h.state}).value
-	C.mrb_hash_set(h.state, h.value, keyVal, valVal)
+	keyVal := *key.MrbValue(&Mrb{h.state}).value
+	valVal := *val.MrbValue(&Mrb{h.state}).value
+	C.mrb_hash_set(h.state, *h.value, keyVal, valVal)
 	return nil
 }
 
@@ -43,6 +43,6 @@ func (h *Hash) Set(key, val Value) error {
 // as an *MrbValue since this is a Ruby array. You can iterate over it as
 // you see fit.
 func (h *Hash) Keys() (*MrbValue, error) {
-	result := C.mrb_hash_keys(h.state, h.value)
-	return newValue(h.state, result), nil
+	result := C.mrb_hash_keys(h.state, *h.value)
+	return newValue(h.state, &result), nil
 }

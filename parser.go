@@ -45,7 +45,8 @@ func (p *Parser) Close() {
 // executable Ruby code, returning the callable proc.
 func (p *Parser) GenerateCode() *MrbValue {
 	proc := C.mrb_generate_code(p.mrb.state, p.parser)
-	return newValue(p.mrb.state, C.mrb_obj_value(unsafe.Pointer(proc)))
+	val := C.mrb_obj_value(unsafe.Pointer(proc))
+	return newValue(p.mrb.state, &val)
 }
 
 // Parse parses the code in the given context, and returns any warnings
